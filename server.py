@@ -689,7 +689,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif path == "/" or path == "/index.html":
             self._serve_file("index.html")
         else:
-            super().do_GET()
+            self.send_response(404)
+            self.end_headers()
 
     def _handle_search(self, params):
         url = params.get("url", "").strip()
