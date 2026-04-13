@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Similar Track Finder</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0a">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--surface:#141414;--surface2:#1e1e1e;--border:#2a2a2a;
+  --text:#e5e5e5;--text2:#999;--text3:#666;
+  --accent:#01ff95;--accent-dim:rgba(1,255,149,.08);
+  --red:#ff4444;--blue:#4ea8ff;--purple:#a78bfa;
+  --bp-color:#01ff95;--sc-color:#ff5500;--bc-color:#1da0c3;
+  --radius:10px;--radius-lg:14px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;padding-bottom:90px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+.header{padding:24px 20px 0;max-width:1440px;margin:0 auto}
+.header h1{font-size:24px;font-weight:700;letter-spacing:-.5px}
+.header h1 span{color:var(--accent)}
+.header p{color:var(--text2);font-size:13px;margin-top:4px}
+
+.search-section{max-width:1440px;margin:20px auto;padding:0 20px}
+.search-box{display:flex;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:6px;transition:border-color .2s}
+.search-box:focus-within{border-color:var(--accent)}
+.search-box input{flex:1;background:none;border:none;color:var(--text);font-size:15px;padding:10px 12px;outline:none}
+.search-box input::placeholder{color:var(--text3)}
+.search-box button{background:var(--accent);color:#0a0a0a;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .15s}
+.search-box button:hover{opacity:.85}
+.search-box button:disabled{opacity:.4;cursor:not-allowed}
+.search-hint{color:var(--text3);font-size:12px;margin-top:8px;padding:0 4px}
+
+.source-card{max-width:1440px;margin:16px auto;padding:0 20px}
+.source-inner{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;gap:16px}
+.source-art{width:64px;height:64px;border-radius:8px;background:var(--surface2);object-fit:cover;flex-shrink:0}
+.source-art.placeholder{display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text3)}
+.source-info{flex:1;min-width:0}
+.source-info h3{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-info .artist{color:var(--text2);font-size:13px;margin-top:2px}
+.source-badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.badge-genre{background:rgba(78,168,255,.15);color:var(--blue)}
+.badge-bpm{background:rgba(167,139,250,.15);color:var(--purple)}
+.badge-key{background:var(--accent-dim);color:var(--accent)}
+.badge-label{background:rgba(255,255,255,.08);color:var(--text2)}
+
+.loading{text-align:center;padding:60px 20px}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{color:var(--text2);margin-top:12px;font-size:14px}
+
+/* ── 3-Column Layout ── */
+.results-columns{max-width:1440px;margin:0 auto;padding:0 16px 40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.results-column{min-width:0;background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+.col-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:5}
+.col-header .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.col-beatport .col-header{border-bottom-color:var(--bp-color)}
+.col-beatport .dot{background:var(--bp-color)}
+.col-soundcloud .col-header{border-bottom-color:var(--sc-color)}
+.col-soundcloud .dot{background:var(--sc-color)}
+.col-bandcamp .col-header{border-bottom-color:var(--bc-color)}
+.col-bandcamp .dot{background:var(--bc-color)}
+.col-header h2{font-size:14px;font-weight:600;flex:1}
+.col-header .count{color:var(--text3);font-size:12px}
+.col-sort{background:none;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-weight:600;padding:3px 8px;cursor:pointer;transition:all .15s;white-space:nowrap;margin-left:6px}
+.col-sort:hover{border-color:var(--text2);color:var(--text2)}
+.col-sort.active{border-color:var(--accent);color:var(--accent)}
+.col-tracks{max-height:calc(100vh - 280px);overflow-y:auto;padding:4px}
+.col-tracks::-webkit-scrollbar{width:4px}
+.col-tracks::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── Track Row ── */
+.track-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;transition:background .15s;cursor:pointer}
+.track-row:hover{background:var(--surface2)}
+.track-row.playing{background:rgba(255,255,255,.05)}
+.col-beatport .track-row.playing{background:rgba(1,255,149,.06)}
+.col-soundcloud .track-row.playing{background:rgba(255,85,0,.06)}
+.col-bandcamp .track-row.playing{background:rgba(29,160,195,.06)}
+.track-rank{width:22px;text-align:center;font-size:12px;font-weight:600;color:var(--text3);flex-shrink:0}
+.track-art-wrap{position:relative;width:36px;height:36px;flex-shrink:0}
+.track-art{width:36px;height:36px;border-radius:5px;background:var(--surface2);object-fit:cover}
+.track-art.placeholder{display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3)}
+.play-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);border-radius:5px;opacity:0;transition:opacity .15s;font-size:14px;color:#fff}
+.track-row:hover .play-overlay{opacity:1}
+.track-row.playing .play-overlay{opacity:1}
+.track-info{flex:1;min-width:0}
+.track-info .title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-info .artist{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.track-score{font-size:12px;font-weight:700;flex-shrink:0;min-width:32px;text-align:right}
+.col-beatport .track-score{color:var(--bp-color)}
+.col-soundcloud .track-score{color:var(--sc-color)}
+.col-bandcamp .track-score{color:var(--bc-color)}
+.track-score.mid{opacity:.7}
+.track-score.low{opacity:.4}
+.track-link{flex-shrink:0}
+.track-link a{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;color:var(--text3);font-size:11px;transition:all .15s}
+.track-link a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+.col-empty{text-align:center;padding:40px 16px;color:var(--text3);font-size:13px}
+
+/* ── Floating Player ── */
+.mini-player{position:fixed;z-index:200;background:rgba(45,20,5,.78);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border:1px solid rgba(255,140,50,.15);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,160,60,.08);width:380px;min-width:260px;max-width:600px;opacity:0;pointer-events:none;transition:opacity .25s ease;user-select:none;overflow:hidden}
+.mini-player.visible{opacity:1;pointer-events:auto}
+.mp-drag-handle{height:24px;cursor:grab;display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(255,140,50,.12);border-radius:14px 14px 0 0;background:rgba(255,120,30,.06)}
+.mp-drag-handle:active{cursor:grabbing}
+.mp-drag-dots{width:32px;height:4px;background:var(--text3);border-radius:2px;opacity:.4}
+.mp-progress-bar{height:6px;background:var(--border);cursor:pointer}
+.mp-progress{height:100%;background:var(--accent);width:0%;transition:width .1s linear}
+.mp-content{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.mp-btn{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#0a0a0a;border:none;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mp-btn:hover{opacity:.85}
+.mp-art{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--surface2)}
+.mp-info{flex:1;min-width:0}
+.mp-info .title{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-info .artist{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mp-bottom{display:flex;align-items:center;gap:8px;padding:6px 14px 10px;justify-content:space-between}
+.mp-time{font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
+.mp-platform{flex-shrink:0}
+.mp-platform a{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:4px 10px;border:1px solid var(--border);border-radius:5px;transition:all .15s;color:var(--text2)}
+.mp-platform a:hover{text-decoration:none}
+.mp-platform.beatport a{color:var(--bp-color);border-color:var(--bp-color)}
+.mp-platform.soundcloud a{color:var(--sc-color);border-color:var(--sc-color)}
+.mp-platform.bandcamp a{color:var(--bc-color);border-color:var(--bc-color)}
+/* Resize handle */
+.mp-resize{position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:nwse-resize;display:flex;align-items:flex-end;justify-content:flex-end;padding:3px}
+.mp-resize svg{opacity:.3;transition:opacity .15s}
+.mp-resize:hover svg{opacity:.7}
+
+.empty-state{text-align:center;padding:80px 20px}
+.empty-state .icon{font-size:48px;margin-bottom:16px;opacity:.4}
+.empty-state h3{font-size:18px;color:var(--text2);margin-bottom:8px}
+.empty-state p{color:var(--text3);font-size:14px;max-width:400px;margin:0 auto;line-height:1.5}
+.error-msg{background:rgba(255,68,68,.1);border:1px solid rgba(255,68,68,.2);color:var(--red);padding:12px 16px;border-radius:8px;font-size:13px;margin:16px 20px;max-width:1440px;margin-left:auto;margin-right:auto}
+
+@media(max-width:900px){
+  .results-columns{grid-template-columns:1fr;padding:0 12px 40px}
+  .col-tracks{max-height:none}
+  .header,.search-section,.source-card{padding-left:12px;padding-right:12px}
+  .source-inner{padding:12px}
+  .source-art{width:48px;height:48px}
+  .mini-player{width:calc(100vw - 24px)!important;max-width:380px}
+  .mp-bottom{flex-wrap:wrap}
+}
+@media(min-width:901px) and (max-width:1100px){
+  .results-columns{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Similar <span>Track Finder</span></h1>
+  <p>Paste a track link &mdash; search Beatport, SoundCloud &amp; Bandcamp simultaneously</p>
+</div>
+
+<div class="search-section">
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Paste a Spotify, SoundCloud, YouTube, or Beatport link..." autofocus>
+    <button id="search-btn" onclick="doSearch()">Find Similar</button>
+  </div>
+  <div class="search-hint">
+    Supports: Beatport, Spotify, SoundCloud, YouTube, Bandcamp &mdash; or just type an artist / track name
+  </div>
+</div>
+
+<div id="source-card" class="source-card" style="display:none"></div>
+<div id="loading" class="loading" style="display:none">
+  <div class="spinner"></div>
+  <p>Searching Beatport, SoundCloud &amp; Bandcamp...</p>
+</div>
+<div id="error-box"></div>
+<div id="results-columns" class="results-columns" style="display:none"></div>
+<div id="empty" class="empty-state">
+  <div class="icon">🎧</div>
+  <h3>Find your next track</h3>
+  <p>Paste a link to any track and we'll search three platforms for similar music.</p>
+</div>
+
+<!-- Floating Player -->
+<div class="mini-player" id="mini-player">
+  <div class="mp-drag-handle" id="mp-drag-handle"><div class="mp-drag-dots"></div></div>
+  <div class="mp-progress-bar" id="mp-progress-bar">
+    <div class="mp-progress" id="mp-progress"></div>
+  </div>
+  <div class="mp-content">
+    <button class="mp-btn" id="mp-play-btn" onclick="togglePlay()">&#9654;</button>
+    <img class="mp-art" id="mp-art" src="" alt="">
+    <div class="mp-info">
+      <div class="title" id="mp-title"></div>
+      <div class="artist" id="mp-artist"></div>
+    </div>
+  </div>
+  <div class="mp-bottom">
+    <div class="mp-time" id="mp-time">0:00 / 0:00</div>
+    <div class="mp-platform" id="mp-platform">
+      <a id="mp-link" href="#" target="_blank" rel="noopener">Open</a>
+    </div>
+  </div>
+  <div class="mp-resize" id="mp-resize"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M9 1v8H1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M9 5v4H5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const PLATFORMS = ['beatport', 'soundcloud', 'bandcamp'];
+const PLATFORM_NAMES = { beatport: 'Beatport', soundcloud: 'SoundCloud', bandcamp: 'Bandcamp' };
+
+let trackLists = { beatport: [], soundcloud: [], bandcamp: [] };
+let displayedLists = { beatport: [], soundcloud: [], bandcamp: [] };
+let sortMode = { beatport: 'similarity', soundcloud: 'similarity', bandcamp: 'similarity' };
+let audio = new Audio();
+let currentTrack = null;
+let currentPlatform = null;
+
+// ── Audio events ──
+audio.addEventListener('timeupdate', () => {
+  if (audio.duration) {
+    $('#mp-progress').style.width = (audio.currentTime / audio.duration * 100) + '%';
+    $('#mp-time').textContent = `${fmtTime(audio.currentTime)} / ${fmtTime(audio.duration)}`;
+  }
+});
+audio.addEventListener('ended', () => {
+  if (!currentPlatform) return;
+  const list = displayedLists[currentPlatform];
+  const idx = list.indexOf(currentTrack);
+  if (idx >= 0 && idx < list.length - 1) playTrack(list[idx + 1], currentPlatform);
+  else { audio.pause(); updatePlayBtn(); highlightRow(null); }
+});
+audio.addEventListener('pause', updatePlayBtn);
+audio.addEventListener('play', updatePlayBtn);
+
+$('#mp-progress-bar').addEventListener('click', e => {
+  if (audio.duration) {
+    audio.currentTime = ((e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.offsetWidth) * audio.duration;
+  }
+});
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+}
+
+async function playTrack(t, platform) {
+  if (!t) return;
+
+  // Toggle if same track
+  if (currentTrack && currentTrack.id === t.id) {
+    audio.paused ? audio.play() : audio.pause();
+    return;
+  }
+
+  // Resolve stream URL if needed
+  if (!t.sample_url) {
+    if (platform === 'soundcloud' && t._transcoding_url) {
+      try {
+        const r = await fetch(`/api/sc-stream?url=${encodeURIComponent(t._transcoding_url)}`);
+        const d = await r.json();
+        t.sample_url = d.stream_url || '';
+      } catch(e) {}
+    } else if (platform === 'bandcamp' && t.url) {
+      try {
+        const r = await fetch(`/api/bc-preview?url=${encodeURIComponent(t.url)}`);
+        const d = await r.json();
+        t.sample_url = d.stream_url || '';
+        if (d.release_date && !t.release_date) {
+          t.release_date = d.release_date;
+          // Update the row display
+          const row = document.querySelector(`[data-id="${t.id}"] .artist`);
+          if (row) row.innerHTML = esc(t.artists || '') + ' &middot; ' + t.release_date.slice(0,4);
+        }
+      } catch(e) {}
+    }
+  }
+
+  if (!t.sample_url) return;
+
+  currentTrack = t;
+  currentPlatform = platform;
+  audio.src = t.sample_url;
+  audio.play();
+
+  const mix = t.mix && t.mix !== 'Original Mix' ? ` (${t.mix})` : '';
+  $('#mp-title').textContent = (t.title || '') + mix;
+  $('#mp-artist').textContent = t.artists || '';
+  $('#mp-art').src = t.artwork || '';
+  $('#mp-link').href = t.url || '#';
+  $('#mp-link').textContent = `Open on ${PLATFORM_NAMES[platform] || ''}`;
+  $('#mp-platform').className = `mp-platform ${platform}`;
+  $('#mini-player').classList.add('visible');
+  $('#mp-progress').style.width = '0%';
+  highlightRow(t.id);
+}
+
+function togglePlay() { audio.paused ? audio.play() : audio.pause(); }
+
+function updatePlayBtn() {
+  $('#mp-play-btn').innerHTML = audio.paused ? '&#9654;' : '&#10074;&#10074;';
+  highlightRow(audio.paused ? null : (currentTrack ? currentTrack.id : null));
+}
+
+function highlightRow(id) {
+  document.querySelectorAll('.track-row').forEach(r => r.classList.toggle('playing', r.dataset.id == id));
+}
+
+// ── Search ──
+$('#search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+$('#search-input').addEventListener('paste', () => {
+  setTimeout(() => {
+    const v = $('#search-input').value.trim();
+    if (v.startsWith('http://') || v.startsWith('https://')) doSearch();
+  }, 100);
+});
+
+async function doSearch() {
+  const query = $('#search-input').value.trim();
+  if (!query) return;
+
+  $('#empty').style.display = 'none';
+  $('#results-columns').style.display = 'none';
+  $('#source-card').style.display = 'none';
+  $('#error-box').innerHTML = '';
+  $('#loading').style.display = 'block';
+  $('#search-btn').disabled = true;
+
+  try {
+    const resp = await fetch(`/api/search?url=${encodeURIComponent(query)}`);
+    const data = await resp.json();
+    if (data.error) { showError(data.error); return; }
+
+    trackLists.beatport = (data.beatport || {}).tracks || [];
+    trackLists.soundcloud = (data.soundcloud || {}).tracks || [];
+    trackLists.bandcamp = (data.bandcamp || {}).tracks || [];
+
+    renderSource(data.source);
+    renderColumns();
+  } catch (err) {
+    showError(`Connection error: ${err.message}. Make sure the server is running.`);
+  } finally {
+    $('#loading').style.display = 'none';
+    $('#search-btn').disabled = false;
+  }
+}
+
+function showError(msg) {
+  $('#error-box').innerHTML = `<div class="error-msg">${esc(msg)}</div>`;
+  $('#loading').style.display = 'none';
+  $('#search-btn').disabled = false;
+}
+
+function renderSource(src) {
+  if (!src || (!src.title && !src.artists)) return;
+  const card = $('#source-card');
+  const art = src.artwork ? `<img class="source-art" src="${esc(src.artwork)}" alt="">` : `<div class="source-art placeholder">🎵</div>`;
+  let badges = '';
+  if (src.genre) badges += `<span class="badge badge-genre">${esc(src.genre)}</span>`;
+  if (src.bpm) badges += `<span class="badge badge-bpm">${src.bpm} BPM</span>`;
+  if (src.key) badges += `<span class="badge badge-key">${esc(src.key)}${src.camelot ? ' &middot; ' + src.camelot : ''}</span>`;
+  if (src.label) badges += `<span class="badge badge-label">${esc(src.label)}</span>`;
+  const mix = src.mix && src.mix !== 'Original Mix' ? ` (${esc(src.mix)})` : '';
+  card.innerHTML = `<div class="source-inner">${art}<div class="source-info"><h3>${esc(src.title || 'Unknown')}${mix}</h3><div class="artist">${esc(src.artists || 'Unknown Artist')}</div><div class="source-badges">${badges}</div></div></div>`;
+  card.style.display = 'block';
+}
+
+function renderColumns() {
+  const container = $('#results-columns');
+  container.innerHTML = '';
+
+  PLATFORMS.forEach(p => {
+    const sorted = getSortedTracks(p);
+    displayedLists[p] = sorted;
+    const col = document.createElement('div');
+    col.className = `results-column col-${p}`;
+    const isDate = sortMode[p] === 'date';
+    col.innerHTML = `
+      <div class="col-header">
+        <div class="dot"></div>
+        <h2>${PLATFORM_NAMES[p]}</h2>
+        <span class="count">${sorted.length} tracks</span>
+        <button class="col-sort${isDate ? ' active' : ''}" onclick="toggleSort('${p}')">${isDate ? 'Newest' : 'Date ↓'}</button>
+      </div>
+      <div class="col-tracks" id="col-tracks-${p}">${sorted.length ? renderTracks(sorted, p) : '<div class="col-empty">No results found</div>'}</div>`;
+    container.appendChild(col);
+  });
+
+  container.style.display = 'grid';
+}
+
+function getSortedTracks(platform) {
+  const tracks = [...trackLists[platform]];
+  if (sortMode[platform] === 'date') {
+    tracks.sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''));
+  }
+  return tracks;
+}
+
+function toggleSort(platform) {
+  sortMode[platform] = sortMode[platform] === 'similarity' ? 'date' : 'similarity';
+  renderColumns();
+}
+
+function renderTracks(tracks, platform) {
+  return tracks.map((t, i) => {
+    const art = t.artwork ? `<img class="track-art" src="${esc(t.artwork)}" alt="" loading="lazy">` : `<div class="track-art placeholder">♪</div>`;
+    const cls = t.similarity >= 60 ? '' : t.similarity >= 40 ? ' mid' : ' low';
+    const mix = t.mix && t.mix !== 'Original Mix' ? ` (${esc(t.mix)})` : '';
+    const hasAudio = !!(t.sample_url || t._transcoding_url || platform === 'bandcamp');
+    return `
+      <div class="track-row" data-id="${esc(String(t.id))}" data-platform="${platform}" data-idx="${i}" onclick="onRowClick(event,'${platform}',${i})">
+        <div class="track-rank">${i + 1}</div>
+        <div class="track-art-wrap">${art}${hasAudio ? '<div class="play-overlay">&#9654;</div>' : ''}</div>
+        <div class="track-info">
+          <div class="title">${esc(t.title || '')}${mix}</div>
+          <div class="artist">${esc(t.artists || '')}${t.release_date ? ' &middot; ' + t.release_date.slice(0,4) : ''}</div>
+        </div>
+        <div class="track-score${cls}">${t.similarity}%</div>
+        <div class="track-link"><a href="${esc(t.url)}" target="_blank" rel="noopener" title="Open" onclick="event.stopPropagation()">↗</a></div>
+      </div>`;
+  }).join('');
+}
+
+function onRowClick(e, platform, idx) {
+  if (e.target.closest('.track-link')) return;
+  playTrack(displayedLists[platform][idx], platform);
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Keyboard: tap to skip, hold to seek ──
+let arrowHeld = null, arrowTimer = null, arrowIsSeek = false;
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); if (currentTrack) togglePlay(); }
+  if ((e.code === 'ArrowRight' || e.code === 'ArrowLeft') && currentTrack) {
+    e.preventDefault();
+    if (e.repeat) {
+      // Holding — seek
+      arrowIsSeek = true;
+      if (audio.duration) {
+        audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + (e.code === 'ArrowRight' ? 3 : -3)));
+      }
+      return;
+    }
+    arrowHeld = e.code;
+    arrowIsSeek = false;
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if ((e.code === 'ArrowRight' || e.code === 'ArrowLeft') && e.code === arrowHeld) {
+    // Only skip track if it was a quick tap, not a hold-to-seek
+    if (!arrowIsSeek && currentTrack && currentPlatform) {
+      const list = displayedLists[currentPlatform];
+      const idx = list.indexOf(currentTrack);
+      if (e.code === 'ArrowRight' && idx >= 0 && idx < list.length - 1) playTrack(list[idx + 1], currentPlatform);
+      if (e.code === 'ArrowLeft' && idx > 0) playTrack(list[idx - 1], currentPlatform);
+    }
+    arrowHeld = null;
+    arrowIsSeek = false;
+  }
+});
+
+// ── Draggable Player ──
+(function() {
+  const player = $('#mini-player');
+  const handle = $('#mp-drag-handle');
+  let isDragging = false, startX, startY, startLeft, startTop;
+
+  // Initial position: bottom-right
+  function initPosition() {
+    player.style.bottom = '20px';
+    player.style.right = '20px';
+    player.style.left = 'auto';
+    player.style.top = 'auto';
+  }
+  initPosition();
+
+  function onStart(clientX, clientY) {
+    isDragging = true;
+    const rect = player.getBoundingClientRect();
+    // Switch from bottom/right to top/left positioning for dragging
+    player.style.left = rect.left + 'px';
+    player.style.top = rect.top + 'px';
+    player.style.right = 'auto';
+    player.style.bottom = 'auto';
+    startX = clientX;
+    startY = clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    player.style.transition = 'none';
+  }
+
+  function onMove(clientX, clientY) {
+    if (!isDragging) return;
+    let newLeft = startLeft + (clientX - startX);
+    let newTop = startTop + (clientY - startY);
+    // Clamp to viewport
+    const w = player.offsetWidth, h = player.offsetHeight;
+    newLeft = Math.max(0, Math.min(window.innerWidth - w, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - h, newTop));
+    player.style.left = newLeft + 'px';
+    player.style.top = newTop + 'px';
+  }
+
+  function onEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    player.style.transition = '';
+  }
+
+  // Mouse events
+  handle.addEventListener('mousedown', e => { e.preventDefault(); onStart(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', e => { if (isDragging) { e.preventDefault(); onMove(e.clientX, e.clientY); }});
+  document.addEventListener('mouseup', onEnd);
+
+  // Touch events (mobile)
+  handle.addEventListener('touchstart', e => { const t = e.touches[0]; onStart(t.clientX, t.clientY); }, {passive: true});
+  document.addEventListener('touchmove', e => { if (isDragging) { const t = e.touches[0]; onMove(t.clientX, t.clientY); }}, {passive: false});
+  document.addEventListener('touchend', onEnd);
+
+  // ── Resize ──
+  const resizeHandle = $('#mp-resize');
+  let isResizing = false, resizeStartX, resizeStartW;
+
+  function onResizeStart(clientX) {
+    isResizing = true;
+    resizeStartX = clientX;
+    resizeStartW = player.offsetWidth;
+    player.style.transition = 'none';
+  }
+  function onResizeMove(clientX) {
+    if (!isResizing) return;
+    let newW = resizeStartW + (clientX - resizeStartX);
+    newW = Math.max(260, Math.min(600, newW));
+    player.style.width = newW + 'px';
+  }
+  function onResizeEnd() {
+    if (!isResizing) return;
+    isResizing = false;
+    player.style.transition = '';
+  }
+
+  resizeHandle.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); onResizeStart(e.clientX); });
+  document.addEventListener('mousemove', e => { if (isResizing) { e.preventDefault(); onResizeMove(e.clientX); }});
+  document.addEventListener('mouseup', onResizeEnd);
+
+  resizeHandle.addEventListener('touchstart', e => { e.stopPropagation(); onResizeStart(e.touches[0].clientX); }, {passive: true});
+  document.addEventListener('touchmove', e => { if (isResizing) { onResizeMove(e.touches[0].clientX); }}, {passive: false});
+  document.addEventListener('touchend', onResizeEnd);
+})();
+</script>
+</body>
+</html>
